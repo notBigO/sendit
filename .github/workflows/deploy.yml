@@ -22,10 +22,11 @@ jobs:
       - name: Build and push Go backend Docker image
         env:
           IMAGE_NAME: ${{ secrets.DOCKER_USERNAME }}/sendit_backend
-          IMAGE_TAG: latest
+          IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker build -t $IMAGE_NAME:$IMAGE_TAG -f Dockerfile ./
+          docker build -t $IMAGE_NAME:$IMAGE_TAG -t $IMAGE_NAME:latest -f Dockerfile ./
           docker push $IMAGE_NAME:$IMAGE_TAG
+          docker push $IMAGE_NAME:latest
 
       - name: Deploy to EC2
         uses: appleboy/ssh-action@master
@@ -34,25 +35,31 @@ jobs:
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            # Install Docker if not present
             if ! command -v docker &> /dev/null; then
-              sudo apt update -y
-              sudo apt install -y ca-certificates curl gnupg
-              sudo install -m 0755 -d /etc/apt/keyrings
-              curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-              echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-              sudo chmod a+r /etc/apt/keyrings/docker.gpg
-              sudo apt update -y
-              sudo apt install -y docker-ce docker-ce-cli containerd.io
+              sudo apt-get update
+              sudo apt-get install -y docker.io
+              sudo systemctl start docker
+              sudo systemctl enable docker
             fi
 
-            docker_image="${{ secrets.DOCKER_USERNAME }}/sendit_backend:latest"
-            sudo docker pull "$docker_image"
+            # Add current user to docker group
+            sudo usermod -aG docker $USER
 
-            sudo docker stop backend || true
-            sudo docker rm backend || true
+            # Pull the new image
+            docker pull ${{ secrets.DOCKER_USERNAME }}/sendit_backend:latest
 
-            sudo docker run -d \
+            # Stop and remove existing container
+            docker stop backend || true
+            docker rm backend || true
+
+            # Run new container
+            docker run -d \
               --name backend \
+              --restart unless-stopped \
               -p 8080:8080 \
               -e "PORT=8080" \
-              "$docker_image"
+              ${{ secrets.DOCKER_USERNAME }}/sendit_backend:latest
+
+            # Cleanup old images
+            docker system prune -f

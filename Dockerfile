@@ -1,5 +1,4 @@
-
-FROM golang:1.23 AS builder
+FROM golang:1.21 AS builder
 
 WORKDIR /app
 
@@ -9,11 +8,11 @@ RUN go mod download
 
 COPY . .
 
-RUN go build -o main .
+RUN CGO_ENABLED=0 GOOS=linux go build -o main .
 
-FROM debian:bullseye-slim
+FROM alpine:3.18
 
-RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache ca-certificates
 
 WORKDIR /app
 
