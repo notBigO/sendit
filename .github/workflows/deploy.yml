@@ -43,23 +43,20 @@ jobs:
               sudo systemctl enable docker
             fi
 
-            # Add current user to docker group
-            sudo usermod -aG docker $USER
 
-            # Pull the new image
-            docker pull ${{ secrets.DOCKER_USERNAME }}/sendit_backend:latest
+            sudo chmod 666 /var/run/docker.sock
 
-            # Stop and remove existing container
-            docker stop backend || true
-            docker rm backend || true
 
-            # Run new container
-            docker run -d \
+            sudo docker pull ${{ secrets.DOCKER_USERNAME }}/sendit_backend:latest
+
+            sudo docker stop backend || true
+            sudo docker rm backend || true
+
+            sudo docker run -d \
               --name backend \
               --restart unless-stopped \
               -p 8080:8080 \
               -e "PORT=8080" \
               ${{ secrets.DOCKER_USERNAME }}/sendit_backend:latest
 
-            # Cleanup old images
-            docker system prune -f
+            sudo docker system prune -f
