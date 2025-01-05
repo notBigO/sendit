@@ -507,45 +507,57 @@ const WebrtcPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 p-6">
-      <div className="max-w-4xl mx-auto space-y-6">
-        <Card className="border-none shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-3xl tracking-tight">Sendit</CardTitle>
-            <CardDescription>
-              Transfer files directly between browsers, with end-to-end
-              encryption
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+    <div
+      className={`min-h-screen bg-[#0A0118] bg-gradient-to-b from-purple-500/5 to-transparent`}
+    >
+      <div className="max-w-4xl mx-auto p-6 space-y-8">
+        {/* Header */}
+        <div className="text-center space-y-4">
+          <h1 className="text-4xl md:text-6xl font-bold text-white tracking-tight">
+            Send It
+          </h1>
+          <p className="text-lg text-purple-200/60 max-w-2xl mx-auto">
+            Transfer files directly between browsers with end-to-end encryption.
+            Fast, secure, and simple.
+          </p>
+        </div>
+
+        <Card className="border-purple-500/20 bg-purple-500/5 backdrop-blur-xl shadow-2xl">
+          <CardContent className="p-6">
             {!roomId ? (
-              <div className="flex flex-col items-center gap-6 py-12">
+              <div className="flex flex-col items-center gap-8 py-16">
                 <Button
                   size="lg"
                   onClick={createRoom}
-                  className="w-full max-w-sm"
+                  className="w-full max-w-sm bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-500/25 transition-all hover:scale-105"
                 >
                   <Share2 className="mr-2 h-5 w-5" />
                   Create Secure Room
                 </Button>
-                <p className="text-sm text-muted-foreground text-center max-w-md">
+                <p className="text-sm text-purple-200/60 text-center max-w-md">
                   Create a private room to start sharing files securely with
                   another person. All transfers are peer-to-peer and encrypted.
                 </p>
               </div>
             ) : (
-              <div className="space-y-6">
+              <div className="space-y-8">
                 {roomUrl && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Share Room Link</CardTitle>
-                      <CardDescription>
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-white mb-1">
+                        Share Room Link
+                      </h3>
+                      <p className="text-sm text-purple-200/60">
                         Send this link to the person you want to share files
                         with
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex gap-2">
-                      <Input value={roomUrl} readOnly />
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Input
+                        value={roomUrl}
+                        readOnly
+                        className="bg-purple-950/50 border-purple-500/20 text-purple-100"
+                      />
                       <Button
                         variant="secondary"
                         onClick={() => {
@@ -555,23 +567,25 @@ const WebrtcPage = () => {
                             "Room URL copied to clipboard",
                           ]);
                         }}
+                        className="bg-purple-600/10 hover:bg-purple-600/20 text-purple-100"
                       >
                         <Copy className="h-4 w-4" />
                       </Button>
-                    </CardContent>
-                  </Card>
+                    </div>
+                  </div>
                 )}
 
-                <div className="space-y-4">
+                <div className="space-y-6">
                   <div className="flex items-center gap-4">
                     <Button
                       onClick={createOffer}
                       disabled={!connected}
                       variant="outline"
+                      className="border-purple-500/20 text-black hover:bg-gray-200"
                     >
                       {connected ? (
                         <>
-                          <Link className="mr-2 h-4 w-4" />
+                          <Link className="mr-2 h-4 w-4 text-black" />
                           Connect Peer
                         </>
                       ) : (
@@ -582,7 +596,7 @@ const WebrtcPage = () => {
                       )}
                     </Button>
 
-                    <div className="relative flex-1">
+                    <div className="relative flex-1 text-white">
                       <Input
                         type="file"
                         onChange={(e) =>
@@ -592,33 +606,20 @@ const WebrtcPage = () => {
                           !dataChannelRef.current ||
                           dataChannelRef.current.readyState !== "open"
                         }
-                        className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
+                        className="w-full bg-white hover:bg-gray-200 text-black"
                       />
-                      <Button
-                        variant="secondary"
-                        className="w-full"
-                        disabled={
-                          !dataChannelRef.current ||
-                          dataChannelRef.current.readyState !== "open"
-                        }
-                      >
-                        <Upload className="mr-2 h-4 w-4" />
-                        Choose File to Send
-                      </Button>
                     </div>
                   </div>
 
                   {downloadReady && currentFile && (
-                    <Alert className="bg-green-50 border-green-200">
-                      <Check className="h-4 w-4 text-green-600" />
-                      <AlertDescription className="flex items-center justify-between">
-                        <span className="text-green-700">
-                          Ready to download: {currentFile.name}
-                        </span>
+                    <Alert className="bg-green-500/10 border-green-500/20">
+                      <Check className="h-4 w-4 text-green-400" />
+                      <AlertDescription className="flex items-center justify-between text-green-100">
+                        <span>Ready to download: {currentFile.name}</span>
                         <Button
                           onClick={downloadFile}
                           variant="outline"
-                          className="ml-4"
+                          className="ml-4 border-green-500/20 text-green-100 hover:bg-green-500/10"
                         >
                           Download File
                         </Button>
@@ -627,93 +628,95 @@ const WebrtcPage = () => {
                   )}
                 </div>
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Connection Status</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="space-y-2">
-                        <p className="text-sm text-muted-foreground">Room ID</p>
-                        <Badge variant="outline">{roomId}</Badge>
-                      </div>
-                      <div className="space-y-2">
-                        <p className="text-sm text-muted-foreground">
-                          Server Status
-                        </p>
-                        <Badge variant={connected ? "success" : "destructive"}>
-                          {connected ? "Connected" : "Disconnected"}
-                        </Badge>
-                      </div>
-                      <div className="space-y-2">
-                        <p className="text-sm text-muted-foreground">
-                          Data Channel
-                        </p>
-                        <Badge variant="outline">
-                          {dataChannelRef.current?.readyState || "Not Created"}
-                        </Badge>
-                      </div>
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-white">
+                    Connection Status
+                  </h3>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <p className="text-sm text-purple-200/60">Room ID</p>
+                      <Badge
+                        variant="outline"
+                        className="border-purple-500/20 text-purple-100"
+                      >
+                        {roomId}
+                      </Badge>
                     </div>
+                    <div className="space-y-2">
+                      <p className="text-sm text-purple-200/60">
+                        Server Status
+                      </p>
+                      <Badge
+                        variant={connected ? "success" : "destructive"}
+                        className={
+                          connected ? "bg-green-500/10 text-green-100" : ""
+                        }
+                      >
+                        {connected ? "Connected" : "Disconnected"}
+                      </Badge>
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-sm text-purple-200/60">Data Channel</p>
+                      <Badge
+                        variant="outline"
+                        className="border-purple-500/20 text-purple-100"
+                      >
+                        {dataChannelRef.current?.readyState || "Not Created"}
+                      </Badge>
+                    </div>
+                  </div>
 
-                    {(sendProgress || receiveProgress) && (
-                      <div className="space-y-6">
-                        {sendProgress && (
-                          <div className="space-y-2">
-                            <div className="flex justify-between text-sm">
-                              <span>Sending: {sendProgress.name}</span>
-                              <span>{Math.round(sendProgress.progress)}%</span>
-                            </div>
-                            <Progress
-                              value={sendProgress.progress}
-                              className="h-2"
-                            />
-                            <p className="text-sm text-muted-foreground">
-                              {sendProgress.currentChunk} of{" "}
-                              {sendProgress.totalChunks} chunks
-                            </p>
+                  {(sendProgress || receiveProgress) && (
+                    <div className="space-y-6 mt-6">
+                      {sendProgress && (
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm text-purple-100">
+                            <span>Sending: {sendProgress.name}</span>
+                            <span>{Math.round(sendProgress.progress)}%</span>
                           </div>
-                        )}
-
-                        {receiveProgress && (
-                          <div className="space-y-2">
-                            <div className="flex justify-between text-sm">
-                              <span>Receiving: {receiveProgress.name}</span>
-                              <span>
-                                {Math.round(receiveProgress.progress)}%
-                              </span>
-                            </div>
-                            <Progress
-                              value={receiveProgress.progress}
-                              className="h-2"
-                            />
-                            <p className="text-sm text-muted-foreground">
-                              {receiveProgress.currentChunk} of{" "}
-                              {receiveProgress.totalChunks} chunks
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Activity Log</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="max-h-[200px] overflow-y-auto space-y-2">
-                      {messages.map((msg, index) => (
-                        <div
-                          key={index}
-                          className="text-sm text-muted-foreground"
-                        >
-                          {msg}
+                          <Progress
+                            value={sendProgress.progress}
+                            className="h-2 bg-purple-950/50"
+                          />
+                          <p className="text-sm text-purple-200/60">
+                            {sendProgress.currentChunk} of{" "}
+                            {sendProgress.totalChunks} chunks
+                          </p>
                         </div>
-                      ))}
+                      )}
+
+                      {receiveProgress && (
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm text-purple-100">
+                            <span>Receiving: {receiveProgress.name}</span>
+                            <span>{Math.round(receiveProgress.progress)}%</span>
+                          </div>
+                          <Progress
+                            value={receiveProgress.progress}
+                            className="h-2 bg-purple-950/50"
+                          />
+                          <p className="text-sm text-purple-200/60">
+                            {receiveProgress.currentChunk} of{" "}
+                            {receiveProgress.totalChunks} chunks
+                          </p>
+                        </div>
+                      )}
                     </div>
-                  </CardContent>
-                </Card>
+                  )}
+                </div>
+
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-white">
+                    Activity Log
+                  </h3>
+                  <div className="max-h-[200px] overflow-y-auto space-y-2 rounded-lg bg-purple-950/30 p-4">
+                    {messages.map((msg, index) => (
+                      <div key={index} className="text-sm text-purple-200/60">
+                        {msg}
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
           </CardContent>
