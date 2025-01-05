@@ -34,6 +34,7 @@ type SignalingMessage struct {
 }
 
 func broadcastToOthers(sender *Client, message []byte) {
+	// mutex lock to prevent concurrent access to clients map
 	clientsMux.RLock()
 	defer clientsMux.RUnlock()
 
@@ -91,7 +92,6 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		// Validate message type
 		switch sigMsg.Type {
 		case "offer", "answer", "ice_candidate":
 			broadcastToOthers(client, message)

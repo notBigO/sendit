@@ -3,13 +3,34 @@
 import { useEffect, useRef, useState } from "react";
 
 const signalingServerUrl = "ws://localhost:8080/ws";
+const CHUNK_SIZE = 16384;
+
+interface FileTransfer {
+  name: string;
+  size: number;
+  type: string;
+  currentChunk: number;
+  totalChunks: number;
+  progress: number;
+}
 
 const WebrtcPage = () => {
   const [connected, setConnected] = useState(false);
   const [messages, setMessages] = useState<string[]>([]);
+  const [sendProgress, setSendProgress] = useState<FileTransfer | null>(null);
+  const [receiveProgress, setReceiveProgress] = useState<FileTransfer | null>(
+    null
+  );
+  const [downloadReady, setDownloadReady] = useState(false);
+  const [currentFile, setCurrentFile] = useState<{
+    name: string;
+    url: string;
+  } | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
+  const fileChunksRef = useRef<Uint8Array[]>([]);
+  const receivedSizeRef = useRef<number>(0);
 
   useEffect(() => {
     connectToSignalingServer();
@@ -74,7 +95,7 @@ const WebrtcPage = () => {
     const pc = new RTCPeerConnection(config);
     peerConnectionRef.current = pc;
 
-    // Create data channel
+    // create a data channel
     const dataChannel = pc.createDataChannel("fileTransfer", {
       ordered: true,
     });
@@ -103,14 +124,99 @@ const WebrtcPage = () => {
   };
 
   const setupDataChannelHandlers = (channel: RTCDataChannel) => {
+    channel.binaryType = "arraybuffer";
+    let expectedFileMetadata: FileTransfer | null = null;
+
     channel.onopen = () => {
       console.log("Data channel opened");
       setMessages((prev) => [...prev, "Data channel opened"]);
     };
 
-    channel.onmessage = (event) => {
-      console.log("Received data:", event.data);
-      setMessages((prev) => [...prev, `Received: ${event.data}`]);
+    channel.onmessage = async (event) => {
+      console.log("Received data type:", typeof event.data);
+
+      if (typeof event.data === "string") {
+        try {
+          console.log("Received string data:", event.data);
+          const metadata = JSON.parse(event.data);
+
+          if (metadata.type === "file-start") {
+            console.log("File transfer starting:", metadata);
+
+            expectedFileMetadata = {
+              name: metadata.name,
+              size: metadata.size,
+              type: metadata.fileType,
+              currentChunk: 0,
+              totalChunks: metadata.totalChunks,
+              progress: 0,
+            };
+
+            // reset all state for new transfer
+            fileChunksRef.current = [];
+            receivedSizeRef.current = 0;
+
+            setReceiveProgress(expectedFileMetadata);
+          } else if (metadata.type === "file-end") {
+            console.log("File transfer complete, checking integrity...");
+            console.log("Received size:", receivedSizeRef.current);
+            console.log("Expected size:", expectedFileMetadata?.size);
+            console.log("Number of chunks:", fileChunksRef.current.length);
+
+            if (
+              expectedFileMetadata?.size &&
+              receivedSizeRef.current > 0 &&
+              Math.abs(receivedSizeRef.current - expectedFileMetadata.size) <= 1
+            ) {
+              console.log("Size verification passed, initiating download...");
+              if (expectedFileMetadata) {
+                await handleFileReceived(expectedFileMetadata);
+              }
+            } else {
+              const error = `Size mismatch - Received: ${receivedSizeRef.current}, Expected: ${expectedFileMetadata?.size}`;
+              console.error(error);
+              setMessages((prev) => [...prev, `Error: ${error}`]);
+            }
+          }
+        } catch (error) {
+          console.error("Error processing message:", error);
+          setMessages((prev) => [
+            ...prev,
+            `Error processing message: ${error}`,
+          ]);
+        }
+      } else {
+        try {
+          const chunk = new Uint8Array(event.data);
+          console.log("Received chunk size:", chunk.length);
+
+          if (chunk.length > 0 && expectedFileMetadata) {
+            fileChunksRef.current.push(chunk);
+            receivedSizeRef.current += chunk.length;
+
+            const currentChunk = fileChunksRef.current.length;
+            const progress = Math.min(
+              (receivedSizeRef.current / expectedFileMetadata.size) * 100,
+              100
+            );
+
+            console.log(
+              `Progress update - Chunk: ${currentChunk}, Size: ${receivedSizeRef.current}, Progress: ${progress}%`
+            );
+
+            setReceiveProgress({
+              ...expectedFileMetadata,
+              currentChunk,
+              progress,
+            });
+          } else {
+            console.warn("Received empty chunk or missing metadata");
+          }
+        } catch (error) {
+          console.error("Error processing chunk:", error);
+          setMessages((prev) => [...prev, `Error processing chunk: ${error}`]);
+        }
+      }
     };
 
     channel.onerror = (error) => {
@@ -125,6 +231,155 @@ const WebrtcPage = () => {
       console.log("Data channel closed");
       setMessages((prev) => [...prev, "Data channel closed"]);
     };
+  };
+
+  const handleFileReceived = async (metadata: FileTransfer) => {
+    try {
+      console.log("Starting file assembly...");
+      const combinedArray = new Uint8Array(receivedSizeRef.current);
+      let offset = 0;
+
+      for (const chunk of fileChunksRef.current) {
+        combinedArray.set(chunk, offset);
+        offset += chunk.length;
+      }
+
+      const blob = new Blob([combinedArray], { type: metadata.type });
+      const url = URL.createObjectURL(blob);
+
+      setCurrentFile({ name: metadata.name, url });
+      setDownloadReady(true);
+
+      setMessages((prev) => [...prev, `File received: ${metadata.name}`]);
+
+      // clean up state
+      fileChunksRef.current = [];
+      receivedSizeRef.current = 0;
+    } catch (error) {
+      console.error("Error in handleFileReceived:", error);
+      setMessages((prev) => [
+        ...prev,
+        `Error handling received file: ${error}`,
+      ]);
+    }
+  };
+  const downloadFile = () => {
+    if (currentFile) {
+      const a = document.createElement("a");
+      a.href = currentFile.url;
+      a.download = currentFile.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      // clean up
+      URL.revokeObjectURL(currentFile.url);
+      setCurrentFile(null);
+      setDownloadReady(false);
+      setReceiveProgress(null);
+    }
+  };
+  const sendFile = async (file: File) => {
+    if (
+      !dataChannelRef.current ||
+      dataChannelRef.current.readyState !== "open"
+    ) {
+      setMessages((prev) => [...prev, "No open data channel"]);
+      return;
+    }
+
+    try {
+      const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+      console.log(
+        `Starting file transfer: ${file.name}, size: ${file.size}, chunks: ${totalChunks}`
+      );
+
+      const metadata = {
+        type: "file-start",
+        name: file.name,
+        size: file.size,
+        fileType: file.type,
+        totalChunks,
+      };
+      console.log("Sending metadata:", metadata);
+      dataChannelRef.current.send(JSON.stringify(metadata));
+
+      setSendProgress({
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        currentChunk: 0,
+        totalChunks,
+        progress: 0,
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      const reader = new FileReader();
+      let offset = 0;
+
+      const readNextChunk = () => {
+        const slice = file.slice(offset, offset + CHUNK_SIZE);
+        reader.readAsArrayBuffer(slice);
+      };
+
+      reader.onload = async () => {
+        if (!reader.result || !dataChannelRef.current) return;
+
+        try {
+          dataChannelRef.current.send(reader.result);
+          console.log(
+            `Sent chunk at offset: ${offset}, size: ${reader.result.byteLength}`
+          );
+
+          offset += CHUNK_SIZE;
+          const currentChunk = Math.floor(offset / CHUNK_SIZE);
+          setSendProgress((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  currentChunk,
+                  progress: (offset / file.size) * 100,
+                }
+              : null
+          );
+
+          // adding a small delay between chunks to prevent overwhelming the data channel
+          await new Promise((resolve) => setTimeout(resolve, 5));
+
+          if (offset < file.size) {
+            readNextChunk();
+          } else {
+            console.log("Sending file-end marker");
+            dataChannelRef.current.send(JSON.stringify({ type: "file-end" }));
+            setSendProgress(null);
+            setMessages((prev) => [...prev, `File sent: ${file.name}`]);
+          }
+        } catch (error) {
+          console.error("Error sending chunk:", error);
+          setMessages((prev) => [
+            ...prev,
+            `Error sending file: ${error.toString()}`,
+          ]);
+        }
+      };
+
+      reader.onerror = (error) => {
+        console.error("Error reading file:", error);
+        setMessages((prev) => [
+          ...prev,
+          `Error reading file: ${error.toString()}`,
+        ]);
+      };
+
+      readNextChunk();
+    } catch (error) {
+      console.error("Error in sendFile:", error);
+      setMessages((prev) => [
+        ...prev,
+        `Error sending file: ${error.toString()}`,
+      ]);
+    }
   };
 
   const createOffer = async () => {
@@ -216,41 +471,122 @@ const WebrtcPage = () => {
   };
 
   return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">WebRTC P2P Connection</h1>
-      <div className="space-y-4">
-        <div className="flex space-x-4">
-          <button
-            className="px-4 py-2 bg-blue-500 text-white rounded disabled:bg-gray-400"
-            onClick={createOffer}
-            disabled={!connected}
-          >
-            Create Connection
-          </button>
-          <button
-            className="px-4 py-2 bg-green-500 text-white rounded disabled:bg-gray-400"
-            onClick={sendMessage}
-            disabled={
-              !dataChannelRef.current ||
-              dataChannelRef.current.readyState !== "open"
-            }
-          >
-            Send Test Message
-          </button>
+    <div className="p-6 max-w-4xl mx-auto">
+      <h1 className="text-3xl font-bold mb-6">WebRTC P2P File Sharing</h1>
+
+      <div className="space-y-6">
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center gap-4">
+            <button
+              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400 transition"
+              onClick={createOffer}
+              disabled={!connected}
+            >
+              Create Connection
+            </button>
+
+            <input
+              type="file"
+              onChange={(e) =>
+                e.target.files?.[0] && sendFile(e.target.files[0])
+              }
+              disabled={
+                !dataChannelRef.current ||
+                dataChannelRef.current.readyState !== "open"
+              }
+              className="block w-full text-sm text-slate-500
+              file:mr-4 file:py-2 file:px-4
+              file:rounded-full file:border-0
+              file:text-sm file:font-semibold
+              file:bg-violet-50 file:text-violet-700
+              hover:file:bg-violet-100"
+            />
+          </div>
+
+          {downloadReady && currentFile && (
+            <div className="flex items-center gap-4 p-4 bg-green-50 rounded-lg">
+              <span className="text-green-700">
+                File ready: {currentFile.name}
+              </span>
+              <button
+                onClick={downloadFile}
+                className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition"
+              >
+                Download File
+              </button>
+            </div>
+          )}
         </div>
 
-        <div className="border rounded p-4 min-h-[200px] bg-gray-50">
-          <h2 className="font-semibold mb-2">Connection Status:</h2>
-          <p>{connected ? "Connected to signaling server" : "Disconnected"}</p>
-          <p>
-            Data Channel: {dataChannelRef.current?.readyState || "not created"}
-          </p>
+        <div className="border rounded-lg p-6 bg-gray-50 shadow-sm">
+          <h2 className="text-xl font-semibold mb-4">Transfer Status</h2>
+
+          <div className="space-y-2 mb-4">
+            <p className="text-gray-700">
+              Server:{" "}
+              <span
+                className={`font-medium ${
+                  connected ? "text-green-600" : "text-red-600"
+                }`}
+              >
+                {connected ? "Connected" : "Disconnected"}
+              </span>
+            </p>
+            <p className="text-gray-700">
+              Data Channel:{" "}
+              <span className="font-medium">
+                {dataChannelRef.current?.readyState || "not created"}
+              </span>
+            </p>
+          </div>
+
+          {(sendProgress || receiveProgress) && (
+            <div className="space-y-4">
+              {sendProgress && (
+                <div className="bg-white p-4 rounded-lg shadow-sm">
+                  <h3 className="font-semibold text-blue-700 mb-2">
+                    Sending: {sendProgress.name}
+                  </h3>
+                  <div className="w-full bg-gray-200 rounded-full h-2.5">
+                    <div
+                      className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
+                      style={{ width: `${sendProgress.progress}%` }}
+                    ></div>
+                  </div>
+                  <p className="text-sm text-gray-600 mt-2">
+                    {Math.round(sendProgress.progress)}% (
+                    {sendProgress.currentChunk} of {sendProgress.totalChunks}{" "}
+                    chunks)
+                  </p>
+                </div>
+              )}
+
+              {receiveProgress && (
+                <div className="bg-white p-4 rounded-lg shadow-sm">
+                  <h3 className="font-semibold text-green-700 mb-2">
+                    Receiving: {receiveProgress.name}
+                  </h3>
+                  <div className="w-full bg-gray-200 rounded-full h-2.5">
+                    <div
+                      className="bg-green-600 h-2.5 rounded-full transition-all duration-300"
+                      style={{ width: `${receiveProgress.progress}%` }}
+                    ></div>
+                  </div>
+                  <p className="text-sm text-gray-600 mt-2">
+                    {Math.round(receiveProgress.progress)}% (
+                    {receiveProgress.currentChunk} of{" "}
+                    {receiveProgress.totalChunks} chunks)
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        <div className="border rounded p-4 max-h-[300px] overflow-y-auto">
+        <div className="border rounded-lg p-4 max-h-[300px] overflow-y-auto bg-white shadow-sm">
           <h2 className="font-semibold mb-2">Messages:</h2>
           {messages.map((msg, index) => (
-            <div key={index} className="py-1">
+            <div key={index} className="py-1 text-gray-700">
               {msg}
             </div>
           ))}
