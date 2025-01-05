@@ -1,0 +1,6 @@
+web
+.dockerignore
+Dockerfile
+README.md
+*.log
+node_modules

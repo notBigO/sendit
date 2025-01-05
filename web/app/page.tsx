@@ -17,7 +17,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 const CHUNK_SIZE = 16384;
-const BASE_URL = "http://localhost:8080";
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:8080";
 
 interface FileTransfer {
   name: string;
@@ -508,21 +508,21 @@ const WebrtcPage = () => {
 
   return (
     <div
-      className={`min-h-screen bg-[#0A0118] bg-gradient-to-b from-purple-500/5 to-transparent`}
+      className={`min-h-screen bg-[#0A0118] bg-gradient-to-b from-purple-500/5 to-transparent `}
     >
-      <div className="max-w-4xl mx-auto p-6 space-y-8">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 w-full min-h-screen py-8 sm:py-12 md:py-16">
         {/* Header */}
         <div className="text-center space-y-4">
-          <h1 className="text-4xl md:text-6xl font-bold text-white tracking-tight">
+          <h1 className="text-3xl sm:text-4xl md:text-6xl font-bold text-white tracking-tight">
             Send It
           </h1>
-          <p className="text-lg text-purple-200/60 max-w-2xl mx-auto">
+          <p className="text-base sm:text-lg text-purple-200/60 max-w-2xl mx-auto">
             Transfer files directly between browsers with end-to-end encryption.
             Fast, secure, and simple.
           </p>
         </div>
 
-        <Card className="border-purple-500/20 bg-purple-500/5 backdrop-blur-xl shadow-2xl">
+        <Card className="border-purple-500/20 bg-purple-500/5 backdrop-blur-xl shadow-2xl mt-10">
           <CardContent className="p-6">
             {!roomId ? (
               <div className="flex flex-col items-center gap-8 py-16">
@@ -552,7 +552,7 @@ const WebrtcPage = () => {
                         with
                       </p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-col sm:flex-row gap-2">
                       <Input
                         value={roomUrl}
                         readOnly
@@ -567,7 +567,7 @@ const WebrtcPage = () => {
                             "Room URL copied to clipboard",
                           ]);
                         }}
-                        className="bg-purple-600/10 hover:bg-purple-600/20 text-purple-100"
+                        className="bg-purple-600/10 hover:bg-purple-600/20 text-purple-100 w-full sm:w-auto"
                       >
                         <Copy className="h-4 w-4" />
                       </Button>
@@ -576,16 +576,16 @@ const WebrtcPage = () => {
                 )}
 
                 <div className="space-y-6">
-                  <div className="flex items-center gap-4">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
                     <Button
                       onClick={createOffer}
                       disabled={!connected}
                       variant="outline"
-                      className="border-purple-500/20 text-black hover:bg-gray-200"
+                      className="border-purple-500/20 text-black hover:bg-gray-200 w-full sm:w-auto"
                     >
                       {connected ? (
                         <>
-                          <Link className="mr-2 h-4 w-4 text-black" />
+                          <Link className="mr-2 h-4 w-4" />
                           Connect Peer
                         </>
                       ) : (
@@ -596,7 +596,7 @@ const WebrtcPage = () => {
                       )}
                     </Button>
 
-                    <div className="relative flex-1 text-white">
+                    <div className="relative flex-1">
                       <Input
                         type="file"
                         onChange={(e) =>
@@ -613,13 +613,15 @@ const WebrtcPage = () => {
 
                   {downloadReady && currentFile && (
                     <Alert className="bg-green-500/10 border-green-500/20">
-                      <Check className="h-4 w-4 text-green-400" />
-                      <AlertDescription className="flex items-center justify-between text-green-100">
-                        <span>Ready to download: {currentFile.name}</span>
+                      <Check className="h-4 w-4 text-white" />
+                      <AlertDescription className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-white">
+                        <span className="break-all">
+                          Ready to download: {currentFile.name}
+                        </span>
                         <Button
                           onClick={downloadFile}
                           variant="outline"
-                          className="ml-4 border-green-500/20 text-green-100 hover:bg-green-500/10"
+                          className="border-green-500/20 text-black hover:bg-gray w-full sm:w-auto"
                         >
                           Download File
                         </Button>
@@ -632,7 +634,7 @@ const WebrtcPage = () => {
                   <h3 className="text-lg font-semibold text-white">
                     Connection Status
                   </h3>
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <p className="text-sm text-purple-200/60">Room ID</p>
                       <Badge
