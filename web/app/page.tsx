@@ -18,6 +18,7 @@ import { useEffect, useRef, useState } from "react";
 
 const CHUNK_SIZE = 16384;
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:8080";
+const serverurl = process.env.NEXT_PUBLIC_SERVER_URL || "localhost:8080";
 
 interface FileTransfer {
   name: string;
@@ -80,7 +81,7 @@ const WebrtcPage = () => {
   };
 
   const connectToSignalingServer = (roomId: string) => {
-    const socket = new WebSocket(`ws://localhost:8080/ws?room=${roomId}`);
+    const socket = new WebSocket(`ws://${serverurl}/ws?room=${roomId}`);
     socketRef.current = socket;
 
     socket.onopen = () => {
