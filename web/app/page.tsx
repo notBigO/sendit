@@ -3,7 +3,6 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
-// const signalingServerUrl = "ws://localhost:8080/ws";
 const CHUNK_SIZE = 16384;
 const BASE_URL = "http://localhost:8080";
 
