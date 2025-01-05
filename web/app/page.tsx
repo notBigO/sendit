@@ -1,9 +1,11 @@
 "use client";
 
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
-const signalingServerUrl = "ws://localhost:8080/ws";
+// const signalingServerUrl = "ws://localhost:8080/ws";
 const CHUNK_SIZE = 16384;
+const BASE_URL = "http://localhost:8080";
 
 interface FileTransfer {
   name: string;
@@ -26,31 +28,74 @@ const WebrtcPage = () => {
     name: string;
     url: string;
   } | null>(null);
+  const [roomId, setRoomId] = useState<string | null>(null);
+  const [roomUrl, setRoomUrl] = useState<string>("");
+
   const socketRef = useRef<WebSocket | null>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
   const fileChunksRef = useRef<Uint8Array[]>([]);
   const receivedSizeRef = useRef<number>(0);
 
-  useEffect(() => {
-    connectToSignalingServer();
-    return () => {
-      if (socketRef.current) {
-        socketRef.current.close();
-      }
-      if (peerConnectionRef.current) {
-        peerConnectionRef.current.close();
-      }
-    };
-  }, []);
+  const searchParams = useSearchParams();
+  const router = useRouter();
 
-  const connectToSignalingServer = () => {
-    const socket = new WebSocket(signalingServerUrl);
+  useEffect(() => {
+    const roomFromUrl = searchParams.get("room");
+    if (roomFromUrl) {
+      setRoomId(roomFromUrl);
+      connectToSignalingServer(roomFromUrl);
+    }
+  }, [searchParams]);
+
+  const createRoom = async () => {
+    try {
+      const response = await fetch(`${BASE_URL}/create-room`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const newRoomId = data.roomId;
+
+      if (!newRoomId) {
+        throw new Error("No room ID received from server");
+      }
+
+      setRoomId(newRoomId);
+      const url = `${window.location.origin}${window.location.pathname}?room=${newRoomId}`;
+      setRoomUrl(url);
+
+      // Only connect to WebSocket after we have a room ID
+      await connectToSignalingServer(newRoomId);
+
+      // Update URL without page reload
+      window.history.pushState({}, "", url);
+    } catch (error) {
+      console.error("Error creating room:", error);
+      setMessages((prev) => [...prev, `Error creating room: ${error}`]);
+    }
+  };
+
+  const connectToSignalingServer = (roomId: string) => {
+    if (!roomId) {
+      console.error("Cannot connect: Room ID is missing");
+      return;
+    }
+
+    const socket = new WebSocket(`ws://localhost:8080/ws?room=${roomId}`);
     socketRef.current = socket;
 
     socket.onopen = () => {
       console.log("Connected to signaling server");
       setConnected(true);
+      setMessages((prev) => [...prev, `Connected to room: ${roomId}`]);
     };
 
     socket.onmessage = async (event) => {
@@ -475,122 +520,170 @@ const WebrtcPage = () => {
       <h1 className="text-3xl font-bold mb-6">WebRTC P2P File Sharing</h1>
 
       <div className="space-y-6">
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center gap-4">
+        {!roomId ? (
+          <div className="flex flex-col gap-4">
             <button
-              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400 transition"
-              onClick={createOffer}
-              disabled={!connected}
+              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition w-full md:w-auto"
+              onClick={createRoom}
             >
-              Create Connection
+              Create New Room
             </button>
-
-            <input
-              type="file"
-              onChange={(e) =>
-                e.target.files?.[0] && sendFile(e.target.files[0])
-              }
-              disabled={
-                !dataChannelRef.current ||
-                dataChannelRef.current.readyState !== "open"
-              }
-              className="block w-full text-sm text-slate-500
-              file:mr-4 file:py-2 file:px-4
-              file:rounded-full file:border-0
-              file:text-sm file:font-semibold
-              file:bg-violet-50 file:text-violet-700
-              hover:file:bg-violet-100"
-            />
-          </div>
-
-          {downloadReady && currentFile && (
-            <div className="flex items-center gap-4 p-4 bg-green-50 rounded-lg">
-              <span className="text-green-700">
-                File ready: {currentFile.name}
-              </span>
-              <button
-                onClick={downloadFile}
-                className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition"
-              >
-                Download File
-              </button>
-            </div>
-          )}
-        </div>
-
-        <div className="border rounded-lg p-6 bg-gray-50 shadow-sm">
-          <h2 className="text-xl font-semibold mb-4">Transfer Status</h2>
-
-          <div className="space-y-2 mb-4">
-            <p className="text-gray-700">
-              Server:{" "}
-              <span
-                className={`font-medium ${
-                  connected ? "text-green-600" : "text-red-600"
-                }`}
-              >
-                {connected ? "Connected" : "Disconnected"}
-              </span>
-            </p>
-            <p className="text-gray-700">
-              Data Channel:{" "}
-              <span className="font-medium">
-                {dataChannelRef.current?.readyState || "not created"}
-              </span>
+            <p className="text-sm text-gray-600">
+              Create a room to start sharing files securely with another person.
             </p>
           </div>
-
-          {(sendProgress || receiveProgress) && (
-            <div className="space-y-4">
-              {sendProgress && (
-                <div className="bg-white p-4 rounded-lg shadow-sm">
-                  <h3 className="font-semibold text-blue-700 mb-2">
-                    Sending: {sendProgress.name}
-                  </h3>
-                  <div className="w-full bg-gray-200 rounded-full h-2.5">
-                    <div
-                      className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
-                      style={{ width: `${sendProgress.progress}%` }}
-                    ></div>
-                  </div>
-                  <p className="text-sm text-gray-600 mt-2">
-                    {Math.round(sendProgress.progress)}% (
-                    {sendProgress.currentChunk} of {sendProgress.totalChunks}{" "}
-                    chunks)
-                  </p>
+        ) : (
+          <>
+            {roomUrl && (
+              <div className="p-4 bg-gray-50 rounded-lg border">
+                <p className="mb-2 font-medium">
+                  Share this link with the recipient:
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={roomUrl}
+                    readOnly
+                    className="flex-1 p-2 border rounded bg-white"
+                  />
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(roomUrl);
+                      setMessages((prev) => [
+                        ...prev,
+                        "Room URL copied to clipboard",
+                      ]);
+                    }}
+                    className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition"
+                  >
+                    Copy Link
+                  </button>
                 </div>
-              )}
+              </div>
+            )}
 
-              {receiveProgress && (
-                <div className="bg-white p-4 rounded-lg shadow-sm">
-                  <h3 className="font-semibold text-green-700 mb-2">
-                    Receiving: {receiveProgress.name}
-                  </h3>
-                  <div className="w-full bg-gray-200 rounded-full h-2.5">
-                    <div
-                      className="bg-green-600 h-2.5 rounded-full transition-all duration-300"
-                      style={{ width: `${receiveProgress.progress}%` }}
-                    ></div>
-                  </div>
-                  <p className="text-sm text-gray-600 mt-2">
-                    {Math.round(receiveProgress.progress)}% (
-                    {receiveProgress.currentChunk} of{" "}
-                    {receiveProgress.totalChunks} chunks)
-                  </p>
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center gap-4">
+                <button
+                  className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400 transition"
+                  onClick={createOffer}
+                  disabled={!connected}
+                >
+                  Create Connection
+                </button>
+
+                <input
+                  type="file"
+                  onChange={(e) =>
+                    e.target.files?.[0] && sendFile(e.target.files[0])
+                  }
+                  disabled={
+                    !dataChannelRef.current ||
+                    dataChannelRef.current.readyState !== "open"
+                  }
+                  className="block w-full text-sm text-slate-500
+                file:mr-4 file:py-2 file:px-4
+                file:rounded-full file:border-0
+                file:text-sm file:font-semibold
+                file:bg-violet-50 file:text-violet-700
+                hover:file:bg-violet-100"
+                />
+              </div>
+
+              {downloadReady && currentFile && (
+                <div className="flex items-center gap-4 p-4 bg-green-50 rounded-lg">
+                  <span className="text-green-700">
+                    File ready: {currentFile.name}
+                  </span>
+                  <button
+                    onClick={downloadFile}
+                    className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition"
+                  >
+                    Download File
+                  </button>
                 </div>
               )}
             </div>
-          )}
-        </div>
 
-        <div className="border rounded-lg p-4 max-h-[300px] overflow-y-auto bg-white shadow-sm">
-          <h2 className="font-semibold mb-2">Messages:</h2>
-          {messages.map((msg, index) => (
-            <div key={index} className="py-1 text-gray-700">
-              {msg}
+            <div className="border rounded-lg p-6 bg-gray-50 shadow-sm">
+              <h2 className="text-xl font-semibold mb-4">Transfer Status</h2>
+
+              <div className="space-y-2 mb-4">
+                <p className="text-gray-700">
+                  Room:{" "}
+                  <span className="font-medium text-blue-600">{roomId}</span>
+                </p>
+                <p className="text-gray-700">
+                  Server:{" "}
+                  <span
+                    className={`font-medium ${
+                      connected ? "text-green-600" : "text-red-600"
+                    }`}
+                  >
+                    {connected ? "Connected" : "Disconnected"}
+                  </span>
+                </p>
+                <p className="text-gray-700">
+                  Data Channel:{" "}
+                  <span className="font-medium">
+                    {dataChannelRef.current?.readyState || "not created"}
+                  </span>
+                </p>
+              </div>
+
+              {(sendProgress || receiveProgress) && (
+                <div className="space-y-4">
+                  {sendProgress && (
+                    <div className="bg-white p-4 rounded-lg shadow-sm">
+                      <h3 className="font-semibold text-blue-700 mb-2">
+                        Sending: {sendProgress.name}
+                      </h3>
+                      <div className="w-full bg-gray-200 rounded-full h-2.5">
+                        <div
+                          className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
+                          style={{ width: `${sendProgress.progress}%` }}
+                        ></div>
+                      </div>
+                      <p className="text-sm text-gray-600 mt-2">
+                        {Math.round(sendProgress.progress)}% (
+                        {sendProgress.currentChunk} of{" "}
+                        {sendProgress.totalChunks} chunks)
+                      </p>
+                    </div>
+                  )}
+
+                  {receiveProgress && (
+                    <div className="bg-white p-4 rounded-lg shadow-sm">
+                      <h3 className="font-semibold text-green-700 mb-2">
+                        Receiving: {receiveProgress.name}
+                      </h3>
+                      <div className="w-full bg-gray-200 rounded-full h-2.5">
+                        <div
+                          className="bg-green-600 h-2.5 rounded-full transition-all duration-300"
+                          style={{ width: `${receiveProgress.progress}%` }}
+                        ></div>
+                      </div>
+                      <p className="text-sm text-gray-600 mt-2">
+                        {Math.round(receiveProgress.progress)}% (
+                        {receiveProgress.currentChunk} of{" "}
+                        {receiveProgress.totalChunks} chunks)
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-          ))}
-        </div>
+
+            <div className="border rounded-lg p-4 max-h-[300px] overflow-y-auto bg-white shadow-sm">
+              <h2 className="font-semibold mb-2">Messages:</h2>
+              {messages.map((msg, index) => (
+                <div key={index} className="py-1 text-gray-700">
+                  {msg}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
