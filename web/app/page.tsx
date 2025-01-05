@@ -1,5 +1,18 @@
 "use client";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
+import { Check, Copy, Link, Loader2, Share2, Upload } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
@@ -494,174 +507,217 @@ const WebrtcPage = () => {
   };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6">WebRTC P2P File Sharing</h1>
-
-      <div className="space-y-6">
-        {!roomId ? (
-          <div className="flex flex-col gap-4">
-            <button
-              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition w-full md:w-auto"
-              onClick={createRoom}
-            >
-              Create New Room
-            </button>
-            <p className="text-sm text-gray-600">
-              Create a room to start sharing files securely with another person.
-            </p>
-          </div>
-        ) : (
-          <>
-            {roomUrl && (
-              <div className="p-4 bg-gray-50 rounded-lg border">
-                <p className="mb-2 font-medium">
-                  Share this link with the recipient:
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 p-6">
+      <div className="max-w-4xl mx-auto space-y-6">
+        <Card className="border-none shadow-lg">
+          <CardHeader>
+            <CardTitle className="text-3xl tracking-tight">Sendit</CardTitle>
+            <CardDescription>
+              Transfer files directly between browsers, with end-to-end
+              encryption
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!roomId ? (
+              <div className="flex flex-col items-center gap-6 py-12">
+                <Button
+                  size="lg"
+                  onClick={createRoom}
+                  className="w-full max-w-sm"
+                >
+                  <Share2 className="mr-2 h-5 w-5" />
+                  Create Secure Room
+                </Button>
+                <p className="text-sm text-muted-foreground text-center max-w-md">
+                  Create a private room to start sharing files securely with
+                  another person. All transfers are peer-to-peer and encrypted.
                 </p>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={roomUrl}
-                    readOnly
-                    className="flex-1 p-2 border rounded bg-white"
-                  />
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(roomUrl);
-                      setMessages((prev) => [
-                        ...prev,
-                        "Room URL copied to clipboard",
-                      ]);
-                    }}
-                    className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition"
-                  >
-                    Copy Link
-                  </button>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {roomUrl && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Share Room Link</CardTitle>
+                      <CardDescription>
+                        Send this link to the person you want to share files
+                        with
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex gap-2">
+                      <Input value={roomUrl} readOnly />
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          navigator.clipboard.writeText(roomUrl);
+                          setMessages((prev) => [
+                            ...prev,
+                            "Room URL copied to clipboard",
+                          ]);
+                        }}
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </CardContent>
+                  </Card>
+                )}
+
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4">
+                    <Button
+                      onClick={createOffer}
+                      disabled={!connected}
+                      variant="outline"
+                    >
+                      {connected ? (
+                        <>
+                          <Link className="mr-2 h-4 w-4" />
+                          Connect Peer
+                        </>
+                      ) : (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Connecting...
+                        </>
+                      )}
+                    </Button>
+
+                    <div className="relative flex-1">
+                      <Input
+                        type="file"
+                        onChange={(e) =>
+                          e.target.files?.[0] && sendFile(e.target.files[0])
+                        }
+                        disabled={
+                          !dataChannelRef.current ||
+                          dataChannelRef.current.readyState !== "open"
+                        }
+                        className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
+                      />
+                      <Button
+                        variant="secondary"
+                        className="w-full"
+                        disabled={
+                          !dataChannelRef.current ||
+                          dataChannelRef.current.readyState !== "open"
+                        }
+                      >
+                        <Upload className="mr-2 h-4 w-4" />
+                        Choose File to Send
+                      </Button>
+                    </div>
+                  </div>
+
+                  {downloadReady && currentFile && (
+                    <Alert className="bg-green-50 border-green-200">
+                      <Check className="h-4 w-4 text-green-600" />
+                      <AlertDescription className="flex items-center justify-between">
+                        <span className="text-green-700">
+                          Ready to download: {currentFile.name}
+                        </span>
+                        <Button
+                          onClick={downloadFile}
+                          variant="outline"
+                          className="ml-4"
+                        >
+                          Download File
+                        </Button>
+                      </AlertDescription>
+                    </Alert>
+                  )}
                 </div>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Connection Status</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <p className="text-sm text-muted-foreground">Room ID</p>
+                        <Badge variant="outline">{roomId}</Badge>
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-sm text-muted-foreground">
+                          Server Status
+                        </p>
+                        <Badge variant={connected ? "success" : "destructive"}>
+                          {connected ? "Connected" : "Disconnected"}
+                        </Badge>
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-sm text-muted-foreground">
+                          Data Channel
+                        </p>
+                        <Badge variant="outline">
+                          {dataChannelRef.current?.readyState || "Not Created"}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    {(sendProgress || receiveProgress) && (
+                      <div className="space-y-6">
+                        {sendProgress && (
+                          <div className="space-y-2">
+                            <div className="flex justify-between text-sm">
+                              <span>Sending: {sendProgress.name}</span>
+                              <span>{Math.round(sendProgress.progress)}%</span>
+                            </div>
+                            <Progress
+                              value={sendProgress.progress}
+                              className="h-2"
+                            />
+                            <p className="text-sm text-muted-foreground">
+                              {sendProgress.currentChunk} of{" "}
+                              {sendProgress.totalChunks} chunks
+                            </p>
+                          </div>
+                        )}
+
+                        {receiveProgress && (
+                          <div className="space-y-2">
+                            <div className="flex justify-between text-sm">
+                              <span>Receiving: {receiveProgress.name}</span>
+                              <span>
+                                {Math.round(receiveProgress.progress)}%
+                              </span>
+                            </div>
+                            <Progress
+                              value={receiveProgress.progress}
+                              className="h-2"
+                            />
+                            <p className="text-sm text-muted-foreground">
+                              {receiveProgress.currentChunk} of{" "}
+                              {receiveProgress.totalChunks} chunks
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Activity Log</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="max-h-[200px] overflow-y-auto space-y-2">
+                      {messages.map((msg, index) => (
+                        <div
+                          key={index}
+                          className="text-sm text-muted-foreground"
+                        >
+                          {msg}
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             )}
-
-            <div className="flex flex-col gap-4">
-              <div className="flex items-center gap-4">
-                <button
-                  className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400 transition"
-                  onClick={createOffer}
-                  disabled={!connected}
-                >
-                  Create Connection
-                </button>
-
-                <input
-                  type="file"
-                  onChange={(e) =>
-                    e.target.files?.[0] && sendFile(e.target.files[0])
-                  }
-                  disabled={
-                    !dataChannelRef.current ||
-                    dataChannelRef.current.readyState !== "open"
-                  }
-                  className="block w-full text-sm text-slate-500
-                file:mr-4 file:py-2 file:px-4
-                file:rounded-full file:border-0
-                file:text-sm file:font-semibold
-                file:bg-violet-50 file:text-violet-700
-                hover:file:bg-violet-100"
-                />
-              </div>
-
-              {downloadReady && currentFile && (
-                <div className="flex items-center gap-4 p-4 bg-green-50 rounded-lg">
-                  <span className="text-green-700">
-                    File ready: {currentFile.name}
-                  </span>
-                  <button
-                    onClick={downloadFile}
-                    className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition"
-                  >
-                    Download File
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <div className="border rounded-lg p-6 bg-gray-50 shadow-sm">
-              <h2 className="text-xl font-semibold mb-4">Transfer Status</h2>
-
-              <div className="space-y-2 mb-4">
-                <p className="text-gray-700">
-                  Room:{" "}
-                  <span className="font-medium text-blue-600">{roomId}</span>
-                </p>
-                <p className="text-gray-700">
-                  Server:{" "}
-                  <span
-                    className={`font-medium ${
-                      connected ? "text-green-600" : "text-red-600"
-                    }`}
-                  >
-                    {connected ? "Connected" : "Disconnected"}
-                  </span>
-                </p>
-                <p className="text-gray-700">
-                  Data Channel:{" "}
-                  <span className="font-medium">
-                    {dataChannelRef.current?.readyState || "not created"}
-                  </span>
-                </p>
-              </div>
-
-              {(sendProgress || receiveProgress) && (
-                <div className="space-y-4">
-                  {sendProgress && (
-                    <div className="bg-white p-4 rounded-lg shadow-sm">
-                      <h3 className="font-semibold text-blue-700 mb-2">
-                        Sending: {sendProgress.name}
-                      </h3>
-                      <div className="w-full bg-gray-200 rounded-full h-2.5">
-                        <div
-                          className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
-                          style={{ width: `${sendProgress.progress}%` }}
-                        ></div>
-                      </div>
-                      <p className="text-sm text-gray-600 mt-2">
-                        {Math.round(sendProgress.progress)}% (
-                        {sendProgress.currentChunk} of{" "}
-                        {sendProgress.totalChunks} chunks)
-                      </p>
-                    </div>
-                  )}
-
-                  {receiveProgress && (
-                    <div className="bg-white p-4 rounded-lg shadow-sm">
-                      <h3 className="font-semibold text-green-700 mb-2">
-                        Receiving: {receiveProgress.name}
-                      </h3>
-                      <div className="w-full bg-gray-200 rounded-full h-2.5">
-                        <div
-                          className="bg-green-600 h-2.5 rounded-full transition-all duration-300"
-                          style={{ width: `${receiveProgress.progress}%` }}
-                        ></div>
-                      </div>
-                      <p className="text-sm text-gray-600 mt-2">
-                        {Math.round(receiveProgress.progress)}% (
-                        {receiveProgress.currentChunk} of{" "}
-                        {receiveProgress.totalChunks} chunks)
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="border rounded-lg p-4 max-h-[300px] overflow-y-auto bg-white shadow-sm">
-              <h2 className="font-semibold mb-2">Messages:</h2>
-              {messages.map((msg, index) => (
-                <div key={index} className="py-1 text-gray-700">
-                  {msg}
-                </div>
-              ))}
-            </div>
-          </>
-        )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
