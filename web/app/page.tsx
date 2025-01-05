@@ -52,31 +52,15 @@ const WebrtcPage = () => {
     try {
       const response = await fetch(`${BASE_URL}/create-room`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
       const data = await response.json();
       const newRoomId = data.roomId;
-
-      if (!newRoomId) {
-        throw new Error("No room ID received from server");
-      }
 
       setRoomId(newRoomId);
       const url = `${window.location.origin}${window.location.pathname}?room=${newRoomId}`;
       setRoomUrl(url);
 
-      // Only connect to WebSocket after we have a room ID
-      await connectToSignalingServer(newRoomId);
-
-      // Update URL without page reload
-      window.history.pushState({}, "", url);
+      connectToSignalingServer(newRoomId);
     } catch (error) {
       console.error("Error creating room:", error);
       setMessages((prev) => [...prev, `Error creating room: ${error}`]);
@@ -84,11 +68,6 @@ const WebrtcPage = () => {
   };
 
   const connectToSignalingServer = (roomId: string) => {
-    if (!roomId) {
-      console.error("Cannot connect: Room ID is missing");
-      return;
-    }
-
     const socket = new WebSocket(`ws://localhost:8080/ws?room=${roomId}`);
     socketRef.current = socket;
 
