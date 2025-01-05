@@ -180,6 +180,10 @@ func handleCreateRoom(w http.ResponseWriter, r *http.Request) {
 func main() {
 	http.HandleFunc("/ws", handleWebSocket)
 	http.HandleFunc("/create-room", handleCreateRoom)
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	})
 
 	port := ":8080"
 	log.Printf("Starting signaling server on %s", port)
